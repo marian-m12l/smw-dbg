@@ -22,6 +22,7 @@ void SmwCopyToVramLow(uint16 vram_addr, const uint8 *src, int n);
 void SmwCopyFromVram(uint16 vram_addr, uint8 *dst, int n);
 
 void SmwDrawPpuFrame(void);
+void SmwDrawPpuDebuggerFrame(uint8 *pixel_buffer, size_t pitch, uint32 render_flags);
 void SmwRunOneFrameOfGame(void);
 
 extern bool g_did_finish_level_hook;

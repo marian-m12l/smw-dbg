@@ -78,6 +78,14 @@ static const char kWindowTitle[] = "SMW";
 static uint32 g_win_flags = SDL_WINDOW_RESIZABLE;
 static SDL_Window *g_window;
 
+// Debugger
+static const char kDbgWindowTitle[] = "SMW | Debugger";
+static uint32 g_dbg_win_flags;
+static SDL_Window *g_dbg_window;
+static struct RendererFuncs g_dbg_renderer_funcs;
+static int g_dbg_width = 64*8*2;
+static int g_dbg_height = 64*8*2;
+
 static uint8 g_paused, g_turbo, g_replay_turbo = true, g_cursor = true;
 static uint8 g_current_window_scale;
 static uint32 g_input_state;
@@ -215,6 +223,19 @@ static void DrawPpuFrameWithPerf(void) {
   g_renderer_funcs.EndDraw();
 }
 
+static void DrawPpuDebuggerFrame() {
+  uint8 *pixel_buffer = 0;
+  int pitch = 0;
+
+  g_dbg_renderer_funcs.BeginDraw(g_dbg_width,
+                             g_dbg_height,
+                             &pixel_buffer, &pitch);
+                             
+  SmwDrawPpuDebuggerFrame(pixel_buffer, pitch, g_ppu_render_flags);
+
+  g_dbg_renderer_funcs.EndDraw();
+}
+
 static SDL_mutex *g_audio_mutex;
 static uint8 *g_audiobuffer, *g_audiobuffer_cur, *g_audiobuffer_end;
 static int g_frames_per_block;
@@ -322,6 +343,77 @@ static const struct RendererFuncs kSdlRendererFuncs = {
   &SdlRenderer_Destroy,
   &SdlRenderer_BeginDraw,
   &SdlRenderer_EndDraw,
+};
+
+
+
+static SDL_Renderer *g_dbg_renderer;
+static SDL_Texture *g_dbg_texture;
+static SDL_Rect g_dbg_sdl_renderer_rect;
+
+static bool SdlDbgRenderer_Init(SDL_Window *window) {
+
+  SDL_Renderer *renderer = SDL_CreateRenderer(g_dbg_window, -1,
+                                              g_config.output_method == kOutputMethod_SDLSoftware ? SDL_RENDERER_SOFTWARE :
+                                              SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+  if (renderer == NULL) {
+    printf("Failed to create dbg renderer: %s\n", SDL_GetError());
+    return false;
+  }
+  SDL_RendererInfo renderer_info;
+  SDL_GetRendererInfo(renderer, &renderer_info);
+  if (kDebugFlag) {
+    printf("Supported texture formats:");
+    for (int i = 0; i < renderer_info.num_texture_formats; i++)
+      printf(" %s", SDL_GetPixelFormatName(renderer_info.texture_formats[i]));
+    printf("\n");
+  }
+  g_dbg_renderer = renderer;
+  if (!g_config.ignore_aspect_ratio)
+    SDL_RenderSetLogicalSize(renderer, g_dbg_width, g_dbg_height);
+  if (g_config.linear_filtering)
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "best");
+
+  g_dbg_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
+                                g_dbg_width, g_dbg_height);
+  if (g_dbg_texture == NULL) {
+    printf("Failed to create dbg texture: %s\n", SDL_GetError());
+    return false;
+  }
+  return true;
+}
+
+static void SdlDbgRenderer_Destroy() {
+  SDL_DestroyTexture(g_dbg_texture);
+  SDL_DestroyRenderer(g_dbg_renderer);
+}
+
+static void SdlDbgRenderer_BeginDraw(int width, int height, uint8 **pixels, int *pitch) {
+  g_dbg_sdl_renderer_rect.w = g_dbg_width;
+  g_dbg_sdl_renderer_rect.h = g_dbg_height;
+  if (SDL_LockTexture(g_dbg_texture, &g_dbg_sdl_renderer_rect, (void **)pixels, pitch) != 0) {
+    printf("Failed to lock texture: %s\n", SDL_GetError());
+    return;
+  }
+}
+
+static void SdlDbgRenderer_EndDraw() {
+
+//  uint64 before = SDL_GetPerformanceCounter();
+  SDL_UnlockTexture(g_dbg_texture);
+//  uint64 after = SDL_GetPerformanceCounter();
+//  float v = (double)(after - before) / SDL_GetPerformanceFrequency();
+//  printf("%f ms\n", v * 1000);
+  SDL_RenderClear(g_dbg_renderer);
+  SDL_RenderCopy(g_dbg_renderer, g_dbg_texture, &g_dbg_sdl_renderer_rect, NULL);
+  SDL_RenderPresent(g_dbg_renderer); // vsyncs to 60 FPS?
+}
+
+static const struct RendererFuncs kSdlDbgRendererFuncs  = {
+  &SdlDbgRenderer_Init,
+  &SdlDbgRenderer_Destroy,
+  &SdlDbgRenderer_BeginDraw,
+  &SdlDbgRenderer_EndDraw,
 };
 
 
@@ -433,6 +525,31 @@ error_reading:;
   if (!g_renderer_funcs.Initialize(window))
     return 1;
 
+  // Debugger
+  int dbg_window_width  = g_dbg_width;
+  int dbg_window_height = g_dbg_height;
+
+  printf("%dx%d\n", dbg_window_width, dbg_window_height);
+  printf("%dx%d\n", g_snes_width, g_snes_height);
+  printf("%dx%d\n", g_dbg_width, g_dbg_height);
+
+  if (g_config.output_method == kOutputMethod_OpenGL) {
+    g_dbg_win_flags |= SDL_WINDOW_OPENGL;
+    OpenGLRenderer_Create(&g_dbg_renderer_funcs);
+  } else {
+    g_dbg_renderer_funcs = kSdlDbgRendererFuncs;
+  }
+
+  SDL_Window* dbg_window = SDL_CreateWindow(kDbgWindowTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, dbg_window_width, dbg_window_height, g_dbg_win_flags);
+  if(dbg_window == NULL) {
+    printf("Failed to create dbg window: %s\n", SDL_GetError());
+    return 1;
+  }
+  g_dbg_window = dbg_window;
+
+  if (!g_dbg_renderer_funcs.Initialize(dbg_window))
+    return 1;
+
   g_audio_mutex = SDL_CreateMutex();
   if (!g_audio_mutex) Die("No mutex");
 
@@ -536,6 +653,13 @@ error_reading:;
       case SDL_QUIT:
         running = false;
         break;
+      case SDL_WINDOWEVENT: {
+        switch (event.window.event) {
+          case SDL_WINDOWEVENT_CLOSE:
+            running = false;
+        }
+        break;
+      }
       }
     }
 
@@ -561,8 +685,10 @@ error_reading:;
     frameCtr++;
     g_snes->disableRender = (g_turbo ^ (is_replay & g_replay_turbo)) && (frameCtr & (g_turbo ? 0xf : 0x7f)) != 0;
 
-    if (!g_snes->disableRender)
+    if (!g_snes->disableRender) {
+      DrawPpuDebuggerFrame();
       DrawPpuFrameWithPerf();
+    }
 
     bool want_bug_in_title = (g_got_mismatch_count != 0);
     if (want_bug_in_title != has_bug_in_title) {
@@ -607,12 +733,14 @@ error_reading:;
   free(g_audiobuffer);
 
   g_renderer_funcs.Destroy();
+  g_dbg_renderer_funcs.Destroy();
 
 #ifdef __SWITCH__
   SwitchImpl_Exit();
 #endif
 
   SDL_DestroyWindow(window);
+  SDL_DestroyWindow(dbg_window);
   SDL_Quit();
   return 0;
 }

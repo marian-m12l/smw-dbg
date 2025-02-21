@@ -18,6 +18,8 @@ static void PpuDrawWholeLine(Ppu *ppu, uint y);
 static bool ppu_evaluateSprites(Ppu* ppu, int line);
 static uint16_t ppu_getVramRemap(Ppu* ppu);
 
+static int ppu_getDbgPixelForBgLayer(Ppu *ppu, int x, int y, int layer);
+
 
 Ppu* ppu_init(void) {
   Ppu* ppu = malloc(sizeof(Ppu));
@@ -747,6 +749,144 @@ static NOINLINE void PpuDrawWholeLine(Ppu *ppu, uint y) {
     }
   } while (cw_clip_math >>= 1, ++windex < cwin.nr);
 
+}
+
+
+
+void ppu_renderDebugger(Ppu *ppu, uint32_t renderPitch, uint8_t *renderBuffer, int bg, uint offset) {
+  uint16_t vscroll = ppu->vScroll[bg] % (64*8);
+  uint16_t vscrollEnd = (vscroll + 224) % (64*8);
+  uint16_t hscroll = ppu->hScroll[bg] % (64*8);
+  uint16_t hscrollEnd = (hscroll + 256) % (64*8);
+
+  for (int line = 0; line < 64*8; line++) {
+    uint32 *dst = (uint32*)&renderBuffer[line * renderPitch + offset];
+
+    // evaluate sprites
+    ClearBackdrop(&ppu->objBuffer);
+    bool forcedBlank = ppu->inidisp & 0x80;
+    ppu->lineHasSprites = !forcedBlank && ppu_evaluateSprites(ppu, line - 1);
+
+    for (int x = 0; x < 64*8; x++) {
+      int pixel = 0;
+      if (bg >= 0) {
+        pixel = ppu_getDbgPixelForBgLayer(ppu, x, line, bg);
+      } else if (line < 224 && x < 256) {
+        // get a pixel from the sprite buffer
+        pixel = ppu->objBuffer.data[x + kPpuExtraLeftRight] & 0xff;
+      }
+      uint16_t color = ppu->cgram[pixel & 0xff];
+
+      if (bg < 0 && (line >= 224 || x > 256)) {
+        color = 0;
+      }
+
+      if (bg >= 0 && (
+        ((line == vscroll || line == vscrollEnd) && hscrollEnd > hscroll && x >= hscroll && x <= hscrollEnd)
+        || ((line == vscroll || line == vscrollEnd) && hscrollEnd < hscroll && (x >= hscroll || x <= hscrollEnd))
+        || ((x == hscroll || x == hscrollEnd) && vscrollEnd > vscroll && line >= vscroll && line <= vscrollEnd)
+        || ((x == hscroll || x == hscrollEnd) && vscrollEnd < vscroll && (line >= vscroll || line <= vscrollEnd))
+        )) {
+        color = 0xffff;
+      }
+
+      uint32_t r = color & 0x1f;
+      uint32_t g = (color >> 5) & 0x1f;
+      uint32_t b = (color >> 10) & 0x1f;
+      
+      uint8 *color_map = ppu->brightnessMult;
+      dst[0] = color_map[b] | color_map[g] << 8 | color_map[r] << 16;
+
+      dst++;
+    }
+  }
+}
+
+
+static const int bitDepthsPerMode[10][4] = {
+  {2, 2, 2, 2},
+  {4, 4, 2, 5},
+  {4, 4, 5, 5},
+  {8, 4, 5, 5},
+  {8, 2, 5, 5},
+  {4, 2, 5, 5},
+  {4, 5, 5, 5},
+  {8, 5, 5, 5},
+  {4, 4, 2, 5},
+  {8, 7, 5, 5}
+};
+
+static int ppu_getDbgPixelForBgLayer(Ppu *ppu, int x, int y, int layer) {
+  bool bgTilemapWider = ppu->bgXsc[layer] & 0x1;
+  bool bgTilemapHigher =ppu->bgXsc[layer] & 0x2;
+  uint16 bgTilemapAdr = (ppu->bgXsc[layer] & 0xfc) << 8;
+  
+  uint16 bgTileAdr;
+  switch (layer) {
+    case 0:
+      bgTileAdr = (ppu->bgTileAdr & 0xf) << 12;
+      break;
+    case 1:
+      bgTileAdr = (ppu->bgTileAdr & 0xf0) << 8;
+      break;
+    case 2:
+      bgTileAdr = (ppu->bgTileAdr & 0xf00) << 4;
+      break;
+    case 3:
+      bgTileAdr = (ppu->bgTileAdr & 0xf000) >> 4;
+      break;
+  }
+  
+  uint8_t mode = ppu->bgmode & 0x07;
+
+  // figure out address of tilemap word and read it
+  bool wideTiles = mode == 5 || mode == 6;
+  int tileBitsX = wideTiles ? 4 : 3;
+  int tileHighBitX = wideTiles ? 0x200 : 0x100;
+  int tileBitsY = 3;
+  int tileHighBitY = 0x100;
+  uint16_t tilemapAdr = bgTilemapAdr + (((y >> tileBitsY) & 0x1f) << 5 | ((x >> tileBitsX) & 0x1f));
+  if ((x & tileHighBitX) && bgTilemapWider) tilemapAdr += 0x400;
+  if ((y & tileHighBitY) && bgTilemapHigher) tilemapAdr += bgTilemapWider ? 0x800 : 0x400;
+  uint16_t tile = ppu->vram[tilemapAdr & 0x7fff];
+  // check priority, get palette
+//  if (((bool)(tile & 0x2000)) != priority) return 0; // wrong priority
+  int paletteNum = (tile & 0x1c00) >> 10;
+  // figure out position within tile
+  int row = (tile & 0x8000) ? 7 - (y & 0x7) : (y & 0x7);
+  int col = (tile & 0x4000) ? (x & 0x7) : 7 - (x & 0x7);
+  int tileNum = tile & 0x3ff;
+  if (wideTiles) {
+    // if unflipped right half of tile, or flipped left half of tile
+    if (((bool)(x & 8)) ^ ((bool)(tile & 0x4000))) tileNum += 1;
+  }
+  // read tiledata, ajust palette for mode 0
+  int bitDepth = bitDepthsPerMode[mode][layer];
+  if (mode == 0) paletteNum += 8 * layer;
+  // plane 1 (always)
+  int paletteSize = 4;
+  uint16_t plane1 = ppu->vram[(bgTileAdr + ((tileNum & 0x3ff) * 4 * bitDepth) + row) & 0x7fff];
+  int pixel = (plane1 >> col) & 1;
+  pixel |= ((plane1 >> (8 + col)) & 1) << 1;
+  // plane 2 (for 4bpp, 8bpp)
+  if (bitDepth > 2) {
+    paletteSize = 16;
+    uint16_t plane2 = ppu->vram[(bgTileAdr + ((tileNum & 0x3ff) * 4 * bitDepth) + 8 + row) & 0x7fff];
+    pixel |= ((plane2 >> col) & 1) << 2;
+    pixel |= ((plane2 >> (8 + col)) & 1) << 3;
+  }
+  // plane 3 & 4 (for 8bpp)
+  if (bitDepth > 4) {
+    paletteSize = 256;
+    uint16_t plane3 = ppu->vram[(bgTileAdr + ((tileNum & 0x3ff) * 4 * bitDepth) + 16 + row) & 0x7fff];
+    pixel |= ((plane3 >> col) & 1) << 4;
+    pixel |= ((plane3 >> (8 + col)) & 1) << 5;
+    uint16_t plane4 = ppu->vram[(bgTileAdr + ((tileNum & 0x3ff) * 4 * bitDepth) + 24 + row) & 0x7fff];
+    pixel |= ((plane4 >> col) & 1) << 6;
+    pixel |= ((plane4 >> (8 + col)) & 1) << 7;
+  }
+  // return cgram index, or 0 if transparent, palette number in bits 10-8 for 8-color layers
+  return pixel == 0 ? 0 : paletteSize * paletteNum + pixel;
 }
 
 static bool ppu_evaluateSprites(Ppu* ppu, int line) {

@@ -227,6 +227,8 @@ void ppu_write(Ppu* ppu, uint8_t adr, uint8_t val);
 void ppu_saveload(Ppu *ppu, SaveLoadInfo *sli);
 void PpuBeginDrawing(Ppu *ppu, uint8_t *pixels, size_t pitch, uint32_t render_flags);
 
+void ppu_renderDebugger(Ppu* ppu, uint32_t renderPitch, uint8_t *renderBuffer, int bg, uint offset);
+
 int PpuGetCurrentRenderScale(Ppu *ppu, uint32_t render_flags);
 
 #endif

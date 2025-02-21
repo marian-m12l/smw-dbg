@@ -90,6 +90,14 @@ void SmwDrawPpuFrame(void) {
   }
 }
 
+void SmwDrawPpuDebuggerFrame(uint8 *pixel_buffer, size_t pitch, uint32 render_flags) {
+  // TODO Render TileMaps, Backgrounds, Window, Tiles, Sprites, Palettes, ...
+  ppu_renderDebugger(g_ppu, pitch, pixel_buffer, 0, 0);
+  ppu_renderDebugger(g_ppu, pitch, pixel_buffer, 1, 64*8*4);
+  ppu_renderDebugger(g_ppu, pitch, pixel_buffer, 2, 64*8*pitch);
+  ppu_renderDebugger(g_ppu, pitch, pixel_buffer, -1, 64*8*pitch + 64*8*4);
+}
+
 void SmwRunOneFrameOfGame(void) {
   if (*(uint16 *)reset_sprites_y_function_in_ram == 0)
     SmwVectorReset();
