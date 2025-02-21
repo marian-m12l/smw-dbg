@@ -70,3 +70,9 @@ Additionally, the following commands are available:
 | Alt+Enter | Toggle Fullscreen     |
 | Shift+F1-F10 | Save snapshot |
 | Ctrl+F1-F10 | Replay the snapshot |
+
+
+
+## Debugger view (WIP)
+
+![Screenshot From 2025-02-21 21-11-19](https://github.com/user-attachments/assets/59fffe81-4616-438d-9b15-bdec49057efd)
