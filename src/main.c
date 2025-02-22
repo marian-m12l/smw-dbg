@@ -514,7 +514,7 @@ error_reading:;
     return 1;
   }
 
-  SDL_Window *window = SDL_CreateWindow(kWindowTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, window_width, window_height, g_win_flags);
+  SDL_Window *window = SDL_CreateWindow(kWindowTitle, 0, 0, window_width, window_height, g_win_flags);
   if(window == NULL) {
     printf("Failed to create window: %s\n", SDL_GetError());
     return 1;
@@ -540,7 +540,7 @@ error_reading:;
     g_dbg_renderer_funcs = kSdlDbgRendererFuncs;
   }
 
-  SDL_Window* dbg_window = SDL_CreateWindow(kDbgWindowTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, dbg_window_width, dbg_window_height, g_dbg_win_flags);
+  SDL_Window* dbg_window = SDL_CreateWindow(kDbgWindowTitle, window_width, 0, dbg_window_width, dbg_window_height, g_dbg_win_flags);
   if(dbg_window == NULL) {
     printf("Failed to create dbg window: %s\n", SDL_GetError());
     return 1;
