@@ -1045,20 +1045,7 @@ static bool ppu_evaluateSpritesDbg(Ppu* ppu, int line, PpuZbufType* objBufferDat
             // go over each pixel
             int px_left = 0;//IntMax(-(col + x + kPpuExtraLeftRight), 0);
             int px_right = 8;//IntMin(256 + kPpuExtraLeftRight - (col + x), 8);
-            //PpuZbufType *dst = ppu->objBuffer.data + col + x + px_left + kPpuExtraLeftRight;
             PpuZbufType *dst = objBufferData + col + x + 256 + px_left; // FIXME + kPpuExtraLeftRight;
-            //printf("x+256=%d\n", x+256);
-
-            if (col + x + 256 + px_left > 519) {
-              printf("OFFSET > 519: %d\n", col + x + 256 + px_left);
-            }
-            if (col + x + 256 + px_left < 0) {
-              printf("OFFSET < 0: %d\n", col + x + 256 + px_left);
-            }
-
-            if (dst - objBufferData >= 512+64) {
-              printf("OOB: %p - %p = %p\n", dst, objBufferData, dst - objBufferData);
-            }
 
             for (int px = px_left; px < px_right; px++, dst++) {
               int shift = oam1 & 0x4000 ? px : 7 - px;
