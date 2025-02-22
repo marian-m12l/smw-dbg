@@ -759,6 +759,15 @@ void ppu_renderDebugger(Ppu *ppu, uint32_t renderPitch, uint8_t *renderBuffer, i
   uint16_t vscrollEnd = (vscroll + 224) % (64*8);
   uint16_t hscroll = ppu->hScroll[bg] % (64*8);
   uint16_t hscrollEnd = (hscroll + 256) % (64*8);
+
+  // FIXME Need to compute ppu->extraXxxCur based on current game mode
+  uint8_t extraLeftCur = 85;
+  uint8_t extraRightCur = 85;
+  uint8_t extraBottomCur = 16;
+
+  uint16_t vscrollEndExt = (ppu->vScroll[bg] + 224 + extraBottomCur) % (64*8);
+  uint16_t hscrollExt = (ppu->hScroll[bg] - extraLeftCur) % (64*8);
+  uint16_t hscrollEndExt = (ppu->hScroll[bg] + 256 + extraRightCur) % (64*8);
   
   PpuZbufType objBufferData[512+64];  // TODO display sprite after position 512 ?? --> 574 pixel wide ?
 
@@ -777,6 +786,9 @@ void ppu_renderDebugger(Ppu *ppu, uint32_t renderPitch, uint8_t *renderBuffer, i
       } else if (line < 240) {
         // get a pixel from the sprite buffer
         pixel = objBufferData[(128+x)%512] & 0xff;
+        if (pixel == 0 && x >= 384 && x < 384+64) {
+          pixel = objBufferData[128+x] & 0xff;
+        }
       }
       uint16_t color = ppu->cgram[pixel & 0xff];
 
@@ -788,6 +800,12 @@ void ppu_renderDebugger(Ppu *ppu, uint32_t renderPitch, uint8_t *renderBuffer, i
         )) {
         color = 0xffff;
       }
+      if (bg < 0 && (
+        ((line == 0 || line == 224 + extraBottomCur) && (128+x) >= 256 - extraLeftCur && (128+x) <= 511 + extraRightCur)
+        || (((128+x)%512 == 256 - extraLeftCur || (128+x) == 511 + extraRightCur) && line >= 0 && line <= 224 + extraBottomCur)
+        )) {
+        color = 0x059f;
+      }
 
       if (bg >= 0 && (
         ((line == vscroll || line == vscrollEnd) && hscrollEnd > hscroll && x >= hscroll && x <= hscrollEnd)
@@ -796,6 +814,16 @@ void ppu_renderDebugger(Ppu *ppu, uint32_t renderPitch, uint8_t *renderBuffer, i
         || ((x == hscroll || x == hscrollEnd) && vscrollEnd < vscroll && (line >= vscroll || line <= vscrollEnd))
         )) {
         color = 0xffff;
+      }
+
+      // TODO No extension on bg2 ?
+      if (bg >= 0 && (
+        ((line == vscroll || line == vscrollEndExt) && hscrollEndExt > hscrollExt && x >= hscrollExt && x <= hscrollEndExt)
+        || ((line == vscroll || line == vscrollEndExt) && hscrollEndExt < hscrollExt && (x >= hscrollExt || x <= hscrollEndExt))
+        || ((x == hscrollExt || x == hscrollEndExt) && vscrollEndExt > vscroll && line >= vscroll && line <= vscrollEndExt)
+        || ((x == hscrollExt || x == hscrollEndExt) && vscrollEndExt < vscroll && (line >= vscroll || line <= vscrollEndExt))
+        )) {
+        color = 0x059f;
       }
 
       uint32_t r = color & 0x1f;
