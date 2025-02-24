@@ -61,8 +61,9 @@ bool g_new_ppu = true;
 bool g_other_image = true;
 struct SpcPlayer *g_spc_player;
 
-static uint8_t g_pixels[256 * 4 * 240];
-static uint8_t g_my_pixels[256 * 4 * 240];
+// FIXME g_snes_width ?
+static uint8_t g_pixels[(85*2 + 256) * 4 * 240];
+static uint8_t g_my_pixels[(85*2 + 256) * 4 * 240];
 
 int g_got_mismatch_count;
 
@@ -189,7 +190,7 @@ void RtlDrawPpuFrame(uint8 *pixel_buffer, size_t pitch, uint32 render_flags) {
   
   uint8 *ppu_pixels = g_other_image ? g_my_pixels : g_pixels;
   for (size_t y = 0, y_end = g_snes_height; y < y_end; y++)
-    memcpy((uint8 *)pixel_buffer + y * pitch, ppu_pixels + y * 256 * 4, 256 * 4);
+    memcpy((uint8 *)pixel_buffer + y * pitch, ppu_pixels + y * g_snes_width * 4, g_snes_width * 4);
 }
 
 static void DrawPpuFrameWithPerf(void) {
@@ -448,7 +449,7 @@ int main(int argc, char** argv) {
 
   g_gamepad[0].joystick_id = g_gamepad[1].joystick_id = -1;
   g_snes_width = (g_config.extended_aspect_ratio * 2 + 256);
-  g_snes_height = 224;// (g_config.extend_y ? 240 : 224);
+  g_snes_height = (g_config.extend_y ? 240 : 224);
   g_ppu_render_flags = g_config.new_renderer * kPpuRenderFlags_NewRenderer |
     //    g_config.enhanced_mode7 * kPpuRenderFlags_4x4Mode7 |
     g_config.extend_y * kPpuRenderFlags_Height240 |
@@ -513,6 +514,9 @@ error_reading:;
 #endif
     return 1;
   }
+  
+  g_snes->ppu->extraLeftRight = UintMin(g_config.extended_aspect_ratio, kPpuExtraLeftRight);
+  g_my_ppu->extraLeftRight = UintMin(g_config.extended_aspect_ratio, kPpuExtraLeftRight);
 
   SDL_Window *window = SDL_CreateWindow(kWindowTitle, 0, 0, window_width, window_height, g_win_flags);
   if(window == NULL) {
@@ -579,8 +583,8 @@ error_reading:;
     g_audiobuffer = (uint8 *)calloc(g_frames_per_block * have.channels * sizeof(int16), 1);
   }
 
-  PpuBeginDrawing(g_snes->ppu, g_pixels, 256 * 4, 0);
-  PpuBeginDrawing(g_my_ppu, g_my_pixels, 256 * 4, 0);
+  PpuBeginDrawing(g_snes->ppu, g_pixels, g_snes_width * 4, 0);
+  PpuBeginDrawing(g_my_ppu, g_my_pixels, g_snes_width * 4, 0);
 
   if (g_config.save_playthrough)
     MkDir("playthrough");

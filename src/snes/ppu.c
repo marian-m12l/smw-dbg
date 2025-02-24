@@ -62,6 +62,7 @@ void ppu_saveload(Ppu *ppu, SaveLoadInfo *sli) {
 void PpuBeginDrawing(Ppu *ppu, uint8_t *pixels, size_t pitch, uint32_t render_flags) {
   ppu->renderPitch = (uint)pitch;
   ppu->renderBuffer = pixels;
+  // TODO store render_flags ?
 }
 
 bool ppu_checkOverscan(Ppu* ppu) {
@@ -760,14 +761,9 @@ void ppu_renderDebugger(Ppu *ppu, uint32_t renderPitch, uint8_t *renderBuffer, i
   uint16_t hscroll = ppu->hScroll[bg] % (64*8);
   uint16_t hscrollEnd = (hscroll + 256) % (64*8);
 
-  // FIXME Need to compute ppu->extraXxxCur based on current game mode
-  uint8_t extraLeftCur = 85;
-  uint8_t extraRightCur = 85;
-  uint8_t extraBottomCur = 16;
-
-  uint16_t vscrollEndExt = (ppu->vScroll[bg] + 224 + extraBottomCur) % (64*8);
-  uint16_t hscrollExt = (ppu->hScroll[bg] - extraLeftCur) % (64*8);
-  uint16_t hscrollEndExt = (ppu->hScroll[bg] + 256 + extraRightCur) % (64*8);
+  uint16_t vscrollEndExt = (ppu->vScroll[bg] + 224 + ppu->extraBottomCur) % (64*8);
+  uint16_t hscrollExt = (ppu->hScroll[bg] - ppu->extraLeftCur) % (64*8);
+  uint16_t hscrollEndExt = (ppu->hScroll[bg] + 256 + ppu->extraRightCur) % (64*8);
   
   PpuZbufType objBufferData[512+64];  // TODO display sprite after position 512 ?? --> 574 pixel wide ?
 
@@ -801,8 +797,8 @@ void ppu_renderDebugger(Ppu *ppu, uint32_t renderPitch, uint8_t *renderBuffer, i
         color = 0xffff;
       }
       if (bg < 0 && (
-        ((line == 0 || line == 224 + extraBottomCur) && (128+x) >= 256 - extraLeftCur && (128+x) <= 511 + extraRightCur)
-        || (((128+x)%512 == 256 - extraLeftCur || (128+x) == 511 + extraRightCur) && line >= 0 && line <= 224 + extraBottomCur)
+        ((line == 0 || line == 224 + ppu->extraBottomCur) && (128+x) >= 256 - ppu->extraLeftCur && (128+x) <= 511 + ppu->extraRightCur)
+        || (((128+x)%512 == 256 - ppu->extraLeftCur || (128+x) == 511 + ppu->extraRightCur) && line >= 0 && line <= 224 + ppu->extraBottomCur)
         )) {
         color = 0x059f;
       }
@@ -930,6 +926,7 @@ static bool ppu_evaluateSprites(Ppu* ppu, int line) {
     {8, 16}, {8, 32}, {8, 64}, {16, 32},
     {16, 64}, {32, 64}, {16, 32}, {16, 32}
   };
+  int extra_left_right = ppu->extraLeftRight;
 
   // TODO: iterate over oam normally to determine in-range sprites,
   //   then iterate those in-range sprites in reverse for tile-fetching
@@ -947,9 +944,9 @@ static bool ppu_evaluateSprites(Ppu* ppu, int line) {
       // in y-range, get the x location, using the high bit as well
       int x = ppu->oam[index] & 0xff;
       x |= ((ppu->highOam[index >> 3] >> (index & 7)) & 1) << 8;
-      if(x > 255) x -= 512;
+      if(x > 255 + extra_left_right) x -= 512;
       // if in x-range
-      if(x > -spriteSize) {
+      if(x > -(spriteSize + extra_left_right)) {
         // break if we found 32 sprites already
         spritesFound++;
         if(spritesFound > 32) {
@@ -971,7 +968,7 @@ static bool ppu_evaluateSprites(Ppu* ppu, int line) {
         PpuZbufType z = paletteBase + (prio << 8);
 
         for(int col = 0; col < spriteSize; col += 8) {
-          if(col + x > -8 && col + x < 256) {
+          if(col + x > -8 - extra_left_right && col + x < 256 + extra_left_right) {
             // break if we found 34 8*1 slivers already
             tilesFound++;
             if(tilesFound > 34) {
@@ -1411,4 +1408,10 @@ void ppu_write(Ppu* ppu, uint8_t adr, uint8_t val) {
 
 int PpuGetCurrentRenderScale(Ppu *ppu, uint32_t render_flags) {
   return 1;
+}
+
+void PpuSetExtraSideSpace(Ppu *ppu, int left, int right, int bottom) {
+  ppu->extraLeftCur = UintMin(left, ppu->extraLeftRight);
+  ppu->extraRightCur = UintMin(right, ppu->extraLeftRight);
+  ppu->extraBottomCur = UintMin(bottom, 16);
 }

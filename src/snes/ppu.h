@@ -24,9 +24,17 @@ typedef struct BgLayer {
   bool xxmosaicEnabled;
 } BgLayer;
 
+
+// Build time config options
 enum {
-  kPpuXPixels = 256,
-  kPpuExtraLeftRight = 0,
+  kEnableLargeScreen = 1,
+  // How much extra spacing to add on the sides
+  kPpuExtraLeftRight = kEnableLargeScreen ? 96 : 0,
+};
+
+enum {
+  kPpuXPixels = 256 + kPpuExtraLeftRight * 2,
+  //kPpuExtraLeftRight = 0,
 };
 
 typedef uint16_t PpuZbufType;
@@ -130,7 +138,7 @@ struct Ppu {
   // pixel buffer (xbgr)
   // times 2 for even and odd frame
 
-  uint8_t extraLeftCur, extraRightCur, extraLeftRight;
+  uint8_t extraLeftCur, extraRightCur, extraLeftRight, extraBottomCur;
   uint8_t lastMosaicModulo;
   uint8_t lastBrightnessMult;
   bool lineHasSprites;
@@ -230,5 +238,6 @@ void PpuBeginDrawing(Ppu *ppu, uint8_t *pixels, size_t pitch, uint32_t render_fl
 void ppu_renderDebugger(Ppu* ppu, uint32_t renderPitch, uint8_t *renderBuffer, int bg, uint offset);
 
 int PpuGetCurrentRenderScale(Ppu *ppu, uint32_t render_flags);
+void PpuSetExtraSideSpace(Ppu *ppu, int left, int right, int bottom);
 
 #endif
