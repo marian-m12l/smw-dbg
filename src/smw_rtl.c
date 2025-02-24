@@ -64,41 +64,20 @@ void UploadOAMBuffer() {  // 008449
 }
 
 static void ConfigurePpuSideSpace() {
-  /*
   // Let PPU impl know about the maximum allowed extra space on the sides and bottom
   int extra_right = 0, extra_left = 0, extra_bottom = 0;
 //  printf("main %d, sub %d  (%d, %d, %d)\n", main_module_index, submodule_index, BG2HOFS_copy2, room_bounds_x.v[2 | (quadrant_fullsize_x >> 1)], quadrant_fullsize_x >> 1);
-  int mod = main_module_index;
-  if (mod == 14)
-    mod = saved_module_for_menu;
-  if (mod == 9) {
-    if (main_module_index == 14 && submodule_index == 7 && overworld_map_state >= 4) {
-      // World map
-      extra_left = kPpuExtraLeftRight, extra_right = kPpuExtraLeftRight;
-      extra_bottom = 16;
-    } else {
-      // outdoors
-      extra_left = BG2HOFS_copy2 - ow_scroll_vars0.xstart;
-      extra_right = ow_scroll_vars0.xend - BG2HOFS_copy2;
-      extra_bottom = ow_scroll_vars0.yend - BG2VOFS_copy2;
-    }
-  } else if (mod == 7) {
-    // indoors, except when the light cone is in use
-    if (!(hdr_dungeon_dark_with_lantern && TS_copy != 0)) {
-      int qm = quadrant_fullsize_x >> 1;
-      extra_left = IntMax(BG2HOFS_copy2 - room_bounds_x.v[qm], 0);
-      extra_right = IntMax(room_bounds_x.v[qm + 2] - BG2HOFS_copy2, 0);
-    }
-
-    int qy = quadrant_fullsize_y >> 1;
-    extra_bottom = IntMax(room_bounds_y.v[qy + 2] - BG2VOFS_copy2, 0);
-  } else if (mod == 20 || mod == 0 || mod == 1) {
-    extra_left = kPpuExtraLeftRight, extra_right = kPpuExtraLeftRight;
+  int mod = misc_game_mode;
+  if (mod >= 19 && mod <= 21) {
+    // In-level
+    // mirror_current_layer1_xpos is the current screen scroll
+    // camera_last_screen_horiz is the number of screens in the current level
+    extra_left = IntMax(mirror_current_layer1_xpos, 0);
+    extra_right = IntMax((camera_last_screen_horiz-1) * 256 - mirror_current_layer1_xpos, 0);
     extra_bottom = 16;
+    //printf("mirror_current_layer1_xpos=%d left=%d right=%d\n", mirror_current_layer1_xpos, extra_left, extra_right);
   }
-  PpuSetExtraSideSpace(g_zenv.ppu, extra_left, extra_right, extra_bottom);
-  */
-  PpuSetExtraSideSpace(g_ppu, 85, 85, 16);
+  PpuSetExtraSideSpace(g_ppu, extra_left, extra_right, extra_bottom);
 }
 
 
@@ -121,11 +100,6 @@ void SmwDrawPpuFrame() {
     ConfigurePpuSideSpace();
 
   int height = render_flags & kPpuRenderFlags_Height240 ? 240 : 224;
-
-  printf("g_ppu->extraLeftRight = %d\n", g_ppu->extraLeftRight);
-  printf("render_flags = 0x%08x\n", render_flags);
-  printf("kPpuRenderFlags_Height240 = 0x%08x\n", kPpuRenderFlags_Height240);
-  printf("height = %d\n", height);
 
   for (int i = 0; i <= height; i++) {
     ppu_runLine(g_ppu, i);

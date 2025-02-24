@@ -751,6 +751,13 @@ static NOINLINE void PpuDrawWholeLine(Ppu *ppu, uint y) {
     }
   } while (cw_clip_math >>= 1, ++windex < cwin.nr);
 
+  // Clear out stuff on the sides.
+  if (ppu->extraLeftRight - ppu->extraLeftCur != 0)
+    memset(dst_org, 0, sizeof(uint32) * (ppu->extraLeftRight - ppu->extraLeftCur));
+  if (ppu->extraLeftRight - ppu->extraRightCur != 0)
+    memset(dst_org + (256 + ppu->extraLeftRight * 2 - (ppu->extraLeftRight - ppu->extraRightCur)), 0,
+        sizeof(uint32) * (ppu->extraLeftRight - ppu->extraRightCur));
+
 }
 
 
