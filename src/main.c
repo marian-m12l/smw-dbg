@@ -443,6 +443,11 @@ int main(int argc, char** argv) {
     g_debug_flag = true;
     argc -= 1, argv += 1;
   }
+  const char *load_file = NULL;
+  if (argc >= 2 && strcmp(argv[0], "--load") == 0) {
+    load_file = argv[1];
+    argc -= 2, argv += 2;
+  }
   ParseConfigFile(config_file);
 
   LoadAssets();
@@ -597,6 +602,16 @@ error_reading:;
 
   if (g_config.autosave)
     HandleCommand(kKeys_Load + 0, true);
+  
+  if (load_file != NULL) {
+    FILE *f = fopen(load_file, "rb");
+    if (f == NULL) {
+      printf("Failed fopen: %s\n", load_file);
+      return 2;
+    }
+    RtlLoadFromFile(f, false);
+    fclose(f);
+  }
 
   bool running = true;
   uint32 lastTick = SDL_GetTicks();

@@ -464,7 +464,7 @@ void RtlSaveSnapshot(const char *filename, bool saving_with_bug) {
   fclose(f);
 }
 
-static void RtlLoadFromFile(FILE *f, bool replay) {
+void RtlLoadFromFile(FILE *f, bool replay) {
   RtlApuLock();
 
   StateRecorder_Load(&state_recorder, f, replay);

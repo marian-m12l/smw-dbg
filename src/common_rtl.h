@@ -114,6 +114,7 @@ enum {
   kSaveLoad_Replay = 3,
 };
 
+void RtlLoadFromFile(FILE *f, bool replay);
 void RtlSaveLoad(int cmd, int slot);
 void RtlCheat(char c);
 void RtlApuLock();
