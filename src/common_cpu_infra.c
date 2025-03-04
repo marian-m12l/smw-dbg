@@ -305,6 +305,12 @@ void SaveBugSnapshot() {
   g_got_mismatch_count = 5 * 60;
 }
 
+void SaveWidescreenSnapshot() {
+  char buffer[64];
+  snprintf(buffer, sizeof(buffer), "saves/%s-widescreen-%d.sav", g_rtl_game_info->title, (int)time(NULL));
+  RtlSaveSnapshot(buffer, true);
+}
+
 int g_dbg_ctr_mine, g_dbg_ctr_theirs;
 
 void RunOneFrameOfGame_Both(void) {

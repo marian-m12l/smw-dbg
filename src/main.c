@@ -882,6 +882,10 @@ static void HandleInput(int keyCode, int keyMod, bool pressed) {
   int j = FindCmdForSdlKey(keyCode, (SDL_Keymod)keyMod);
   if (j != 0)
     HandleCommand(j, pressed);
+  else if (keyCode == SDLK_m && !pressed) {
+    printf("Saving widescreen snapshot\n");
+    SaveWidescreenSnapshot();
+  }
 }
 
 static uint32 GetActiveControllers() {

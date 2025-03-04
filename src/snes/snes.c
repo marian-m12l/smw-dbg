@@ -55,7 +55,8 @@ void snes_saveload(Snes *snes, SaveLoadInfo *sli) {
   cpu_saveload(snes->cpu, sli);
   apu_saveload(snes->apu, sli);
   dma_saveload(snes->dma, sli);
-  ppu_saveload(snes->ppu, sli);
+  //ppu_saveload(snes->ppu, sli);
+  ppu_saveload(g_my_ppu, sli);
   cart_saveload(snes->cart, sli);
 
   sli->func(sli, &snes->hPos, offsetof(Snes, openBus) + 1 - offsetof(Snes, hPos));

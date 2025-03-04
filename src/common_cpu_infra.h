@@ -22,6 +22,7 @@ typedef void RunOneFrameOfGameFunc(void);
 typedef void FixSnapshotForCompareFunc(Snapshot *b, Snapshot *a);
 
 void RtlRunFrameCompare(void);
+void SaveWidescreenSnapshot(void);
 
 typedef struct RtlGameInfo {
   const char *title;

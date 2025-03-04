@@ -468,7 +468,7 @@ static void RtlLoadFromFile(FILE *f, bool replay) {
   RtlApuLock();
 
   StateRecorder_Load(&state_recorder, f, replay);
-  ppu_copy(g_my_ppu, g_snes->ppu);
+  //ppu_copy(g_my_ppu, g_snes->ppu);
 
   RtlApuUnlock();
 }
